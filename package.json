@@ -1,0 +1,12 @@
+{
+  "name": "smart-temperature",
+  "version": "1.0.0",
+  "description": "Small internet of things project using arduino and node.js to send notifications to my phone using firebase",
+  "author": "Arturs Dobrajs",
+  "license": "MIT",
+  "dependencies": {
+    "firebase-admin": "^5.0.0",
+    "johnny-five": "^0.9.58",
+    "pubnub": "^3.7.15"
+  }
+}
