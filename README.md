@@ -4,7 +4,7 @@ My first IoT project using Arduino UNO R3.
 
 ## Setup
 Arduino with a small thermistor (for measuring ambient temperature), alphanumeric LCD display (for displaying temperature in Celsius and Fahrenheit) and a small DC motor (for cooling)
-![Setup](http://lmsotfy.com/so.png)
+![Setup](https://image.ibb.co/nrYiDF/IMG_20170525_111120.jpg)
 
 Tech -
 Node.js,
