@@ -2,11 +2,16 @@ var channel = 'smart-temp';
 var admin = require("firebase-admin");
 var five = require("johnny-five");
 
-var upper = 28.0; //upper temperature limit
+var upper = 27.0; //upper temperature limit
 var lower = 20.0; //lower temperature limit
 var topic = "temp";
 var lcd;
 var payload;
+var messagecount = 0;
+var warningCount = 0;
+var ventilatorSpeed = 200;
+var alert = false;
+var override = false;
 
 var options = { //notification options
   priority: "high",
@@ -36,7 +41,8 @@ var motor = new five.Motor({
 
   var pubnub = require('pubnub').init({
     publish_key: 'pub-c-5cc5e25e-47ef-46d1-b602-5eeb96c0ee6c',
-    subscribe_key: 'sub-c-7c93f858-3a44-11e7-887b-02ee2ddab7fe'
+    subscribe_key: 'sub-c-7c93f858-3a44-11e7-887b-02ee2ddab7fe',
+    ssl: true
   });
 
   lcd = new five.LCD({
@@ -51,26 +57,74 @@ var motor = new five.Motor({
     freq: 3000
   });
 
+  pubnub.subscribe({
+    channel: "smart-temp2",
+    callback: setValues,
+    error: function(err) {console.log(err);}
+  });
+
+  pubnub.subscribe({
+    channel: "smart-temp3",
+    callback: switchVentilator,
+    error: function(err) {console.log(err);}
+  });
+
+  function switchVentilator(m) {
+    console.log("m message " + m);
+    if(m == "true") {
+      override = true;
+      motor.reverse(ventilatorSpeed);
+    }
+    else if(m == "false") {
+      override = false;
+      motor.stop();
+    }
+  }
+
+  function setValues(m) {
+    if(m != "" || m != undefined) {
+      if(m == "fast") {
+        ventilatorSpeed = 200;
+      }
+      else if (m == "medium") {
+        ventilatorSpeed = 128;
+      }
+      else if (m == "slow") {
+        ventilatorSpeed = 90;
+      }
+    }
+    else {
+      console.log("Ventilator speed undefined!");
+    }
+  }
+
   temperature.on("change", function() {
     var results = convertTemp(this);
     var celsius = results.C;
+    var fahrenheit = results.F;
+    var data;
+
+    messagecount ++;
 
     if(celsius > upper) {
-      // pubnub.publish({ //pubnub websocket implementation
-      //   channel: channel,
-      //   message: results.C
-      // });
-      motor.reverse(200);
+      alert = true;
+      motor.reverse(ventilatorSpeed);
       setPayload(celsius, upper);
       sendNotification();
+      warningCount ++;
     }
     else if(celsius < lower) {
+      alert = true;
       setPayload(celsius, lower);
       sendNotification();
+      warningCount ++;
     }
     else {
+      alert = false;
       motor.stop();
     }
+
+    publish(celsius, fahrenheit);
 
     lcd.clear();
     lcd.print("C " + results.C);
@@ -86,6 +140,16 @@ var motor = new five.Motor({
       }
     };
   }
+  function publish(celsius, fahrenheit) {
+    var data = {C:celsius, F:fahrenheit, M:messagecount, A:alert, W:warningCount};
+
+    pubnub.publish({
+        channel: 'smart-temp',
+        message: data,
+        success : function(details) {
+            console.log(details)
+        }});
+      }
 
   function sendNotification() {
     admin.messaging().sendToTopic(topic, payload, options)
