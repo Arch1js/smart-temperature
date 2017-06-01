@@ -12,6 +12,7 @@ var warningCount = 0;
 var ventilatorSpeed = 200;
 var alert = false;
 var override = false;
+var notify = true;
 
 var options = { //notification options
   priority: "high",
@@ -65,21 +66,40 @@ var motor = new five.Motor({
 
   pubnub.subscribe({
     channel: "smart-temp3",
-    callback: switchVentilator,
+    callback: updateLimits,
     error: function(err) {console.log(err);}
   });
 
-  function switchVentilator(m) {
-    console.log("m message " + m);
-    if(m == "true") {
-      override = true;
-      motor.reverse(ventilatorSpeed);
+  function updateLimits(m) {
+    var newUpperLimit = m.up;
+    var newLowerLimit = m.lo;
+
+    if(newUpperLimit == undefined) {
+      lower = newLowerLimit;
     }
-    else if(m == "false") {
-      override = false;
-      motor.stop();
+    else if (newLowerLimit == undefined) {
+      upper = newUpperLimit
+    }
+    else if (newUpperLimit == undefined && newLowerLimit == undefined) {
+      //do nothing
+    }
+    else {
+      upper = newUpperLimit;
+      lower = newLowerLimit;
     }
   }
+
+  // function switchVentilator(m) {
+  //   console.log("m message " + m);
+  //   if(m == "true") {
+  //     override = true;
+  //     motor.reverse(ventilatorSpeed);
+  //   }
+  //   else if(m == "false") {
+  //     override = false;
+  //     motor.stop();
+  //   }
+  // }
 
   function setValues(m) {
     if(m != "" || m != undefined) {
@@ -110,13 +130,25 @@ var motor = new five.Motor({
       alert = true;
       motor.reverse(ventilatorSpeed);
       setPayload(celsius, upper);
-      sendNotification();
+
+      if(notify == true) {
+        sendNotification();
+        notify = false;
+        setTimeout(allowNotifications, 600000); //hold on sending notification for 10 minutes
+      }
+
       warningCount ++;
     }
     else if(celsius < lower) {
       alert = true;
       setPayload(celsius, lower);
-      sendNotification();
+
+      if(notify == true) {
+        sendNotification();
+        notify = false;
+        console.log("setting to false");
+        setTimeout(allowNotifications, 600000);
+      }
       warningCount ++;
     }
     else {
@@ -132,6 +164,10 @@ var motor = new five.Motor({
     lcd.print("F " + results.F);
   });
 
+  function allowNotifications() {
+    notify = true;
+  }
+
   function setPayload(celsius, limit) {
     payload = {
       notification: {
@@ -141,7 +177,7 @@ var motor = new five.Motor({
     };
   }
   function publish(celsius, fahrenheit) {
-    var data = {C:celsius, F:fahrenheit, M:messagecount, A:alert, W:warningCount};
+    var data = {C:celsius, F:fahrenheit, M:messagecount, A:alert, W:warningCount, U: upper, L:lower};
 
     pubnub.publish({
         channel: 'smart-temp',
