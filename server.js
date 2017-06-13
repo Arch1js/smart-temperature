@@ -1,6 +1,11 @@
 var channel = 'smart-temp';
 var admin = require("firebase-admin");
 var five = require("johnny-five");
+var converter = require("./tempConverter.js");
+var datasender = require("./sendData.js");
+var bodyParser = require('body-parser')
+var serviceAccount = require("./serviceAccountKey.json");
+var pubnubConfig = require("./pubnubConfig.json");
 
 var upper = 27.0; //upper temperature limit
 var lower = 20.0; //lower temperature limit
@@ -33,16 +38,14 @@ var motor = new five.Motor({
   }
 });
 
-  var serviceAccount = require("./serviceAccountKey.json");
-
   admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://tempnotifications-52936.firebaseio.com"
   });
 
   var pubnub = require('pubnub').init({
-    publish_key: 'pub-c-5cc5e25e-47ef-46d1-b602-5eeb96c0ee6c',
-    subscribe_key: 'sub-c-7c93f858-3a44-11e7-887b-02ee2ddab7fe',
+    publish_key: pubnubConfig.publish_key,
+    subscribe_key: pubnubConfig.subscribe_key,
     ssl: true
   });
 
@@ -119,10 +122,15 @@ var motor = new five.Motor({
   }
 
   temperature.on("change", function() {
-    var results = convertTemp(this);
+    var tempConverter = new converter();
+    var sender = new datasender();
+    var results = tempConverter.convertTemp(this);
+
     var celsius = results.C;
     var fahrenheit = results.F;
     var data;
+
+    console.log(pubnubConfig);
 
     messagecount ++;
 
@@ -156,7 +164,7 @@ var motor = new five.Motor({
       motor.stop();
     }
 
-    publish(celsius, fahrenheit);
+    sender.publish(celsius, fahrenheit, messagecount, alert, warningCount, upper, lower);
 
     lcd.clear();
     lcd.print("C " + results.C);
@@ -176,16 +184,6 @@ var motor = new five.Motor({
       }
     };
   }
-  function publish(celsius, fahrenheit) {
-    var data = {C:celsius, F:fahrenheit, M:messagecount, A:alert, W:warningCount, U: upper, L:lower};
-
-    pubnub.publish({
-        channel: 'smart-temp',
-        message: data,
-        success : function(details) {
-            console.log(details)
-        }});
-      }
 
   function sendNotification() {
     admin.messaging().sendToTopic(topic, payload, options)
@@ -197,17 +195,4 @@ var motor = new five.Motor({
       });
   }
 
-  function convertTemp(object) {
-    console.log(object.C);
-    var tempK = Math.log(10000.0 * ((1024.0 / object.C - 1)));
-    tempK = (1 / (0.001129148 + (0.000234125 + (0.0000000876741 * tempK * tempK )) * tempK )).toFixed(2); //  Temp Kelvin
-    console.log("Kelvin: " + tempK);
-    var tempC = (tempK - 273.15).toFixed(2);// Convert Kelvin to Celcius
-    console.log("Celsius: " + tempC);
-    var tempF = ((tempC * 9.0)/ 5.0 + 32.0).toFixed(2); // Convert Celcius to Fahrenheit
-    console.log("Farenheit: " + tempF);
-
-    var results = {C:tempC, F:tempF, K:tempK};
-    return results;
-  }
 });

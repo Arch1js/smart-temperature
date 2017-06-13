@@ -5,6 +5,7 @@
   "author": "Arturs Dobrajs",
   "license": "MIT",
   "dependencies": {
+    "body-parser": "^1.17.2",
     "firebase-admin": "^5.0.0",
     "johnny-five": "^0.9.58",
     "pubnub": "^3.7.15"
